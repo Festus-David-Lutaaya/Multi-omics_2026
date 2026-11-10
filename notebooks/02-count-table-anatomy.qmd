@@ -71,6 +71,49 @@ effective number of features.*
 - Is features detected never more than 220 (species) or 14,226 (genes)?
   - *Your answer:*
 
+```{r}
+# One row per sample per table. Counts are features in rows, samples in
+# columns, with the feature ID in column 1 — so use [-1] to drop it.
+
+diversity_stats <- function(counts) {
+  x  <- as.matrix(counts[-1])            # counts only, no feature IDs
+  n  <- colSums(x)                       # library size: reads per sample
+  p  <- sweep(x, 2, n, "/")              # each feature's share of the sample
+  q  <- p; q[q == 0] <- NA               # Shannon ignores zero shares
+  H  <- -colSums(q * log(q), na.rm = TRUE)            # Shannon diversity
+  tibble(
+    sample          = colnames(x),
+    library_size    = n,
+    features_detected = colSums(x > 0),
+    fraction_zeros  = 1 - features_detected / nrow(x),
+    largest_share   = apply(p, 2, max),
+    shannon         = H,
+    effective_features = exp(H)           # "how many equally common features"
+  )
+}
+
+sample_stats <- bind_rows(
+  diversity_stats(species) |> mutate(table = "species"),
+  diversity_stats(genes)   |> mutate(table = "genes")
+)
+
+sample_stats
+```
+
+**What each column means**
+
+- `library_size` — total reads sequenced for that sample.
+- `features_detected` — how many features have at least one read.
+- `fraction_zeros` — share of the table's rows that are zero in this sample.
+- `largest_share` — fraction of the library held by the single most common feature.
+- `shannon` — Shannon diversity, a measure that is big when reads are spread evenly over many features.
+- `effective_features` — e^Shannon, read as "behaves like this many equally common features".
+
+*How to check me:* `sum(species$P001_week_18)` in the console should equal the
+`library_size` of that sample above; and `effective_features` should never
+exceed `features_detected`, which should never exceed 220 (species) or 14,226
+(genes).
+
 ### Step 2: a short report
 
 Suggested request: *Under that data frame, add a summary table with the median,
